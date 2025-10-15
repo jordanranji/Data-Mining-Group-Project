@@ -522,8 +522,3 @@ plt.xlabel("Theoretical Quantiles (Normal Distribution)")
 plt.ylabel("Observed Field Goal %")
 plt.tight_layout()
 plt.show()
-
-#  Print quick stats 
-print(f"Mean FG%: {fg_pct.mean():.2f}")
-print(f"Skewness: {fg_pct.skew():.2f}")
-print(f"Kurtosis: {fg_pct.kurtosis():.2f}")
