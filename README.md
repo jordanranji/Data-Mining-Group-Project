@@ -22,3 +22,6 @@ Milestone 3 - Model Implementation (Nov. 20)\
   
 Milestone 4 - Conclusion, Results, and Project Report (Dec. 1)\
   Write final report, prepare for presentation.
+
+
+SAVE THIS ,Game_ID,Player_Name,Player_ID,Starter,Home,MP,FG,FGA,FG%,3P,3PA,3P%,FT,FTA,FT%,ORB,DRB,TRB,AST,STL,BLK,TOV,PF,PTS,GmSc,+/-
