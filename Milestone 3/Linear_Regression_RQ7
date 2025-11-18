@@ -1,0 +1,138 @@
+import time
+import numpy as np
+import pandas as pd
+from tqdm import tqdm
+import matplotlib.pyplot as plt
+
+from nba_api.stats.static import players as static_players
+from nba_api.stats.endpoints import commonplayerinfo, playercareerstats
+
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
+
+
+# Label: 1 = College (USA), 0 = International
+def origin_label(country, school):
+    if country and str(country).strip().upper() in ["USA", "UNITED STATES"]:
+        return 1
+    if isinstance(school, str) and any(w in school.lower() for w in ["university", "state", "college"]):
+        return 1
+    return 0
+
+
+# Split season into 2019 for "2019-20" for example (for easier data conversion)
+def season_start_year(season_id):
+    try:
+        return int(str(season_id).split("-")[0])
+    except:
+        return np.nan
+
+
+# Get players from NBA database
+def get_players(active_only=True, max_players=299):
+    plist = static_players.get_players()
+    if active_only:
+        plist = [p for p in plist if p.get("is_active")]
+    return plist[:max_players]
+
+
+# Build dataframe: get player info, get season stats, then take average of points and minutes for first 3 seasons
+def build_df(players):
+    rows = []
+    for p in tqdm(players, desc="Fetching players"):
+        pid = p["id"]
+        try:
+            bio = commonplayerinfo.CommonPlayerInfo(player_id=pid).common_player_info.get_data_frame()
+            time.sleep(1)
+            if bio.empty:
+                continue
+            b = bio.iloc[0]
+
+            country = b.get("COUNTRY")
+            school = b.get("SCHOOL")
+            origin = origin_label(country, school)
+
+            car = playercareerstats.PlayerCareerStats(player_id=pid, per_mode36="PerGame").get_data_frames()[0]
+            time.sleep(1)
+            if car.empty:
+                continue
+
+            car = car[car["LEAGUE_ID"] == "00"].copy()
+            if car.empty:
+                continue
+
+            car["start_year"] = car["SEASON_ID"].apply(season_start_year)
+            car = car.sort_values("start_year")
+
+            first3 = car.head(3)
+            if first3.empty:
+                continue
+
+            metrics = ["PTS", "MIN"]
+            agg = first3[metrics].mean(numeric_only=True).to_dict()
+
+            rows.append({
+                "player_id": pid,
+                "full_name": f"{b.get('FIRST_NAME','')} {b.get('LAST_NAME','')}".strip(),
+                "origin_college_1_usa_0_intl": origin,
+                "avg_pts_3yrs": agg.get("PTS", np.nan),
+                "avg_min_3yrs": agg.get("MIN", np.nan),
+            })
+
+        except Exception:
+            continue
+
+    return pd.DataFrame(rows)
+
+
+# Run linear regression
+def run_linear_regression(df):
+    df = df.copy()
+    needed = ["origin_college_1_usa_0_intl", "avg_min_3yrs", "avg_pts_3yrs"]
+    df = df[needed].apply(pd.to_numeric, errors="coerce").dropna()
+
+    X = df[["origin_college_1_usa_0_intl", "avg_min_3yrs"]]
+    y = df["avg_pts_3yrs"]
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.25, 
+    )
+
+    model = LinearRegression()
+    model.fit(X_train, y_train)
+
+    preds = model.predict(X_test)
+
+    mse = mean_squared_error(y_test, preds)
+    rmse = mse ** 0.5
+    r2 = r2_score(y_test, preds)
+
+    coef_origin = float(model.coef_[0])
+
+    return model, rmse, r2, coef_origin, y_test, preds
+
+
+if __name__ == "__main__":
+    players = get_players(active_only=True, max_players=299)
+    df = build_df(players)
+    print(df.head)
+
+    if df.empty:
+        print("No data collected. Try rerunning or use more players.")
+    else:
+        model, rmse, r2, coef_origin, y_test, preds = run_linear_regression(df)
+        print(f"R²: {r2:.3f}  |  RMSE: {rmse:.3f}")
+        print(f"Origin coefficient (College=1 vs Intl=0): {coef_origin:.3f}")
+        print("Interpretation: Positive = college players score more, negative = international players score more.")
+
+        # Plot predicted vs actual
+        plt.scatter(y_test, preds, alpha=0.7)
+        plt.xlabel("Actual Average PPG (First 3 Seasons)")
+        plt.ylabel("Predicted Average PPG")
+        plt.title("Predicted vs Actual Player Performance")
+        plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], "r--")
+        plt.show()
+
+        # Save dataset
+        df.to_csv("Q7_dataset.csv", index=False)
