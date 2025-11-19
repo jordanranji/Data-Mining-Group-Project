@@ -23,10 +23,8 @@ def origin_label(country, school):
 
 # Split season into 2019 for "2019-20" for example (for easier data conversion)
 def season_start_year(season_id):
-    try:
-        return int(str(season_id).split("-")[0])
-    except:
-        return np.nan
+    return int(str(season_id).split("-")[0])
+
 
 
 # Get players from NBA database
@@ -118,21 +116,19 @@ if __name__ == "__main__":
     df = build_df(players)
     print(df.head)
 
-    if df.empty:
-        print("No data collected. Try rerunning or use more players.")
-    else:
-        model, rmse, r2, coef_origin, y_test, preds = run_linear_regression(df)
-        print(f"R²: {r2:.3f}  |  RMSE: {rmse:.3f}")
-        print(f"Origin coefficient (College=1 vs Intl=0): {coef_origin:.3f}")
-        print("Interpretation: Positive = college players score more, negative = international players score more.")
+ 
+    model, rmse, r2, coef_origin, y_test, preds = run_linear_regression(df)
+    print(f"R²: {r2:.3f}  |  RMSE: {rmse:.3f}")
+    print(f"Origin coefficient (College=1 vs Intl=0): {coef_origin:.3f}")
+    print("Interpretation: Positive = college players score more, negative = international players score more.")
 
-        # Plot predicted vs actual
-        plt.scatter(y_test, preds, alpha=0.7)
-        plt.xlabel("Actual Average PPG (First 3 Seasons)")
-        plt.ylabel("Predicted Average PPG")
-        plt.title("Predicted vs Actual Player Performance")
-        plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], "r--")
-        plt.show()
+    # Plot predicted vs actual
+    plt.scatter(y_test, preds, alpha=0.7)
+    plt.xlabel("Actual Average PPG (First 3 Seasons)")
+    plt.ylabel("Predicted Average PPG")
+    plt.title("Predicted vs Actual Player Performance")
+    plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], "r--")
+    plt.show()
 
-        # Save dataset
-        df.to_csv("Q7_dataset.csv", index=False)
+    # Save dataset
+    df.to_csv("Q7_dataset.csv", index=False)
